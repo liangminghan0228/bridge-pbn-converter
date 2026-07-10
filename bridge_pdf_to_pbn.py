@@ -797,14 +797,39 @@ def default_output_paths(args: argparse.Namespace, parsed: ParsedSource) -> tupl
     return output, report
 
 
-def main(argv: list[str]) -> int:
-    args = parse_args(argv)
-    parsed = parse_source_with_metadata(args.source)
+def run_conversion(
+    source: str,
+    *,
+    output: Path | str | None = None,
+    report: Path | str | None = None,
+    reference_pbn: Path | str | None = None,
+    out_dir: Path | str | None = None,
+    log=print,
+) -> dict:
+    """Core conversion pipeline, reusable by the CLI and a GUI.
+
+    Returns a result dict with total/failed/passed counts and output paths.
+    ``out_dir`` overrides the output directory (used by the GUI to write next
+    to the running executable).
+    """
+    parsed = parse_source_with_metadata(source)
     boards = parsed.boards
     validation = {board.number: validate_board(board) for board in boards}
     failed = [board_no for board_no, (ok, _, _) in validation.items() if not ok]
-    reference = read_reference_pbn(args.reference_pbn) if args.reference_pbn else {}
-    output_path, report_path = default_output_paths(args, parsed)
+    reference = read_reference_pbn(reference_pbn) if reference_pbn else {}
+
+    if output:
+        output_path = Path(output)
+    elif out_dir:
+        output_path = Path(out_dir) / f"{parsed.filename_stem}.pbn"
+    elif parsed.source_path:
+        output_path = parsed.source_path.parent / f"{parsed.filename_stem}.pbn"
+    else:
+        output_path = Path("bridge_data") / f"{parsed.filename_stem}.pbn"
+    report_path = (
+        Path(report) if report
+        else output_path.with_name(f"{output_path.stem}_validation_report.csv")
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -816,18 +841,43 @@ def main(argv: list[str]) -> int:
         for board in boards
         if reference and reference.get(board.number) != board.pbn_deal()
     ]
-    print(f"Parsed boards: {len(boards)}")
-    print(f"Source: {parsed.source_label}")
-    print(f"Wrote PBN: {output_path}")
-    print(f"Wrote report: {report_path}")
-    print(f"Validation failures: {len(failed)}")
+    log(f"Parsed boards: {len(boards)}")
+    log(f"Source: {parsed.source_label}")
+    log(f"Wrote PBN: {output_path}")
+    log(f"Wrote report: {report_path}")
+    log(f"Validation failures: {len(failed)}")
     if failed:
-        print("Failed boards: " + ", ".join(map(str, failed)))
+        log("Failed boards: " + ", ".join(map(str, failed)))
     if reference:
-        print(f"Reference mismatches: {len(ref_mismatches)}")
+        log(f"Reference mismatches: {len(ref_mismatches)}")
         if ref_mismatches:
-            print("Reference mismatch boards: " + ", ".join(map(str, ref_mismatches)))
-    return 1 if failed else 0
+            log("Reference mismatch boards: " + ", ".join(map(str, ref_mismatches)))
+
+    return {
+        "total": len(boards),
+        "failed": len(failed),
+        "passed": len(boards) - len(failed),
+        "failed_boards": failed,
+        "ref_mismatches": ref_mismatches,
+        "pbn_path": str(output_path),
+        "report_path": str(report_path),
+        "source_label": parsed.source_label,
+    }
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    try:
+        res = run_conversion(
+            args.source,
+            output=args.output,
+            report=args.report,
+            reference_pbn=args.reference_pbn,
+        )
+    except Exception as exc:  # noqa: BLE001 - surface a clean message for CLI users
+        print(f"Error: {exc}")
+        return 1
+    return 1 if res["failed"] else 0
 
 
 if __name__ == "__main__":

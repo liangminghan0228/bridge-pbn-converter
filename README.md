@@ -8,6 +8,25 @@
 cd bridge-pbn-converter
 ```
 
+## 图形界面版（免环境配置）
+
+如果你不想配置 Python 环境，可以直接使用打包好的 `BridgePBNConverter.exe`（位于 `dist/` 目录）：
+
+1. 双击运行 `BridgePBNConverter.exe`。
+2. 选择本地 PDF 文件，或在链接框里粘贴网页 URL（程序会自动识别来源类型）。
+3. （可选）点击"参考 PBN（可选）"选择用于比对的参考文件。
+4. 输出位置默认就是 exe 所在目录，也可以点击"更改…"切换。
+5. 点击"开始转换"，运行日志会实时显示进度与校验结果。
+
+转换完成后，PBN 文件和 CSV 校验报告会输出到指定目录（默认 exe 所在目录）。整个程序是一个单文件 exe，拷到任意 Windows 电脑上双击即可使用，无需安装 Python 或任何依赖。
+
+> 如需从源码重新打包 exe，运行：
+> ```bash
+> python -m PyInstaller --onefile --windowed --noconfirm \
+>   --collect-submodules pdfminer --collect-submodules cryptography \
+>   --name BridgePBNConverter bridge_pbn_gui.py
+> ```
+
 ## 项目结构
 
 输入文件和输出文件统一放在项目根目录下的 `bridge_data/` 目录。

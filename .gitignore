@@ -3,4 +3,8 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-bridge_data/*
+bridge_data/
+*.zip
+.workbuddy/
+dist/
+*.exe
